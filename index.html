@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Easy Zerox - दस्तावेज़ अपलोड करें</title>
+    <style>
+        /* CSS डिज़ाइन */
+        body { font-family: sans-serif; margin: 0; background-color: #f4f4f4; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 350px; text-align: center; }
+        h2 { color: #333; }
+        input[type="file"], input[type="email"], input[type="password"] { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { background-color: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-size: 16px; }
+        button:hover { background-color: #45a049; }
+        #status { margin-top: 15px; color: #555; }
+        #admin-panel { display: none; } /* एडमिन पैनल शुरू में छिपा है */
+        .file-item { border-bottom: 1px solid #eee; padding: 10px; text-align: left; display: flex; justify-content: space-between; align-items: center;}
+        .file-item a { color: #2196F3; text-decoration: none; margin-left: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- ग्राहक अपलोड पेज -->
+    <div id="customer-page">
+        <img src="https://img.icons8.com/?size=100&id=16292&format=png&color=000000" alt="Logo" width="50">
+        <h2>Easy Zerox 📄</h2>
+        <p>अपनी फोटो या PDF फ़ाइल अपलोड करें।</p>
+        <input type="file" id="file-input" accept="image/*,.pdf">
+        <button onclick="uploadFile()">अपलोड करें</button>
+        <div id="status"></div>
+        <p style="margin-top: 20px; font-size: 12px; color: #888; cursor: pointer;" onclick="showAdminLogin()">मैं Admin हूँ</p>
+    </div>
+
+    <!-- Admin लॉग इन पेज -->
+    <div id="admin-login" style="display: none;">
+        <h2>Admin लॉग इन</h2>
+        <input type="email" id="admin-email" placeholder="Admin ईमेल">
+        <input type="password" id="admin-password" placeholder="पासवर्ड">
+        <button onclick="adminLogin()">लॉग इन</button>
+        <p style="margin-top: 20px; font-size: 12px; color: #888; cursor: pointer;" onclick="showCustomerPage()">वापस जाएँ</p>
+    </div>
+
+    <!-- असली Admin पैनल -->
+    <div id="admin-panel">
+        <h2>ग्राहक की फाइलें 📂</h2>
+        <p>लॉग इन सफल! यहाँ वे फ़ाइलें हैं जो ग्राहकों ने अपलोड की हैं।</p>
+        <div id="file-list">
+            <!-- फ़ाइलें यहाँ दिखाई देंगी -->
+        </div>
+        <button onclick="adminLogout()" style="margin-top: 20px; background-color: #f44336;">लॉग आउट</button>
+    </div>
+</div>
+
+<!-- Appwrite SDK (सबसे ज़रूरी!) -->
+<script src="https://cdn.jsdelivr.net/npm/appwrite@14.0.1"></script>
+
+<script>
+    // -------------------------------------------------------
+    // यहाँ आपको अपनी Appwrite जानकारी भरनी है (स्टेप 1)
+    // -------------------------------------------------------
+    const APPWRITE_ENDPOINT = "[claude mcp add appwrite --transport http https://mcp.appwrite.io
+claude "/mcp" # select "appwrite", then "Authenticate"]";
+    const APPWRITE_PROJECT_ID = "[6b0459c70013682c8fd3
+]";
+    const APPWRITE_BUCKET_ID = "[6b045bc80032b434f599]";
+    // -------------------------------------------------------
+
+
+    // Appwrite Client प्रारंभ करें
+    const { Client, Account, Storage, ID, Permission, Role } = Appwrite;
+    const client = new Client();
+    client
+        .setEndpoint(APPWRITE_ENDPOINT)
+        .setProject(APPWRITE_PROJECT_ID);
+
+    const account = new Account(client);
+    const storage = new Storage(client);
+
+    // पेज load होने पर चेक करें कि क्या कोई पहले से लॉग इन है
+    checkSession();
+
+    // -------------------------------------------------------
+    // ग्राहक के फ़ंक्शन (Public Page)
+    // -------------------------------------------------------
+    async function uploadFile() {
+        const fileInput = document.getElementById('file-input');
+        const statusDiv = document.getElementById('status');
+
+        if (fileInput.files.length === 0) {
+            statusDiv.innerHTML = "⚠️ कृपया एक फ़ाइल चुनें।";
+            return;
+        }
+
+        const file = fileInput.files[0];
+        statusDiv.innerHTML = "📤 अपलोड हो रहा है, कृपया प्रतीक्षा करें...";
+
+        try {
+            // 1. फ़ाइल को Storage Bucket में अपलोड करें
+            // हम फ़ाइल को कोई भी अद्वितीय ID दे सकते हैं।
+            const response = await storage.createFile(
+                APPWRITE_BUCKET_ID,
+                ID.unique(),
+                file
+            );
+
+            console.log('File uploaded:', response);
+            statusDiv.innerHTML = "✅ फ़ाइल सफलतापूर्वक अपलोड हो गई! ❤️";
+            fileInput.value = ""; // फ़ाइल इनपुट साफ़ करें
+
+        } catch (error) {
+            console.error('Upload error:', error);
+            statusDiv.innerHTML = "❌ अपलोड विफल। त्रुटि: " + error.message;
+        }
+    }
+
+    function showAdminLogin() {
+        document.getElementById('customer-page').style.display = 'none';
+        document.getElementById('admin-login').style.display = 'block';
+        document.getElementById('admin-panel').style.display = 'none';
+    }
+
+    function showCustomerPage() {
+        document.getElementById('customer-page').style.display = 'block';
+        document.getElementById('admin-login').style.display = 'none';
+        document.getElementById('admin-panel').style.display = 'none';
+        document.getElementById('status').innerHTML = ""; // स्टेटस साफ़ करें
+    }
+
+
+    // -------------------------------------------------------
+    // Admin के फ़ंक्शन (Admin Panel)
+    // -------------------------------------------------------
+    async function adminLogin() {
+        const email = document.getElementById('admin-email').value;
+        const password = document.getElementById('admin-password').value;
+        const statusDiv = document.getElementById('status');
+
+        try {
+            // 1. उपयोगकर्ता को प्रमाणित (Authenticate) करें
+            await account.createEmailPasswordSession(email, password);
+            console.log('Login successful');
+            checkSession(); // सेशन लोड करें और पैनल दिखाएँ
+        } catch (error) {
+            console.error('Login error:', error);
+            alert('❌ लॉग इन विफल। कृपया ईमेल और पासवर्ड की जाँच करें।');
+        }
+    }
+
+    async function checkSession() {
+         try {
+            // क्या वर्तमान में कोई सक्रिय सत्र (session) है?
+            const session = await account.get();
+            console.log('Session active:', session);
+
+            // अगर सत्र सक्रिय है, तो Admin पैनल दिखाएँ
+            showAdminPanel();
+
+         } catch (error) {
+             console.log('No active session.');
+             // यदि कोई सत्र नहीं है, तो ग्राहक पृष्ठ दिखाएँ (डिफ़ॉल्ट)
+         }
+    }
+
+    async function showAdminPanel() {
+        // पेज स्विच करें
+        document.getElementById('customer-page').style.display = 'none';
+        document.getElementById('admin-login').style.display = 'none';
+        document.getElementById('admin-panel').style.display = 'block';
+
+        const fileListDiv = document.getElementById('file-list');
+        fileListDiv.innerHTML = "📥 फ़ाइलें लोड हो रही हैं...";
+
+        try {
+            // 1. Storage Bucket से सभी फ़ाइलें प्राप्त करें
+            const response = await storage.listFiles(APPWRITE_BUCKET_ID);
+            console.log('Files listed:', response);
+
+            fileListDiv.innerHTML = ""; // लोडिंग मैसेज साफ़ करें
+
+            if (response.files.length === 0) {
+                fileListDiv.innerHTML = "<p>📭 कोई फ़ाइल अपलोड नहीं की गई है।</p>";
+                return;
+            }
+
+            // 2. प्रत्येक फ़ाइल को एक सूची के रूप में प्रदर्शित करें
+            response.files.forEach(file => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+
+                // फ़ाइल का नाम और आकार
+                const fileName = document.createElement('span');
+                fileName.innerHTML = `<b>${file.name}</b> (${(file.sizeOriginal / 1024 / 1024).toFixed(2)} MB)`;
+                fileItem.appendChild(fileName);
+
+                // फ़ाइल देखने का लिंक (केवल लॉग इन एडमिन के लिए)
+                // हम एक डाउनलोड/व्यू URL बनाते हैं जिसे केवल लॉग इन उपयोगकर्ता ही एक्सेस कर सकता है
+                const viewUrl = storage.getFileView(APPWRITE_BUCKET_ID, file.$id);
+
+                const viewLink = document.createElement('a');
+                viewLink.href = viewUrl;
+                viewLink.target = '_blank'; // नई टैब में खोलें
+                viewLink.innerHTML = '👁️ देखें';
+                fileItem.appendChild(viewLink);
+
+                fileListDiv.appendChild(fileItem);
+            });
+
+        } catch (error) {
+            console.error('List files error:', error);
+            fileListDiv.innerHTML = "❌ फ़ाइलें लोड करने में विफल। त्रुटि: " + error.message;
+        }
+    }
+
+    async function adminLogout() {
+        try {
+            // वर्तमान सत्र को हटा दें
+            await account.deleteSession('current');
+            console.log('Logout successful');
+            showCustomerPage(); // ग्राहक पृष्ठ पर वापस जाएँ
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
+    }
+
+</script>
+
+</body>
+</html>
