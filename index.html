@@ -140,8 +140,7 @@ const APPWRITE_BUCKET_ID = '6b045bc80032b434f599';
             console.log('Login successful');
             checkSession(); // सेशन लोड करें और पैनल दिखाएँ
         } catch (error) {
-            console.error('Login error:', error);
-            alert('❌ लॉग इन विफल। कृपया ईमेल और पासवर्ड की जाँच करें।');
+            alert('Login Error: ' + error.message + ' | Error Code: ' + error.code);
         }
     }
 
